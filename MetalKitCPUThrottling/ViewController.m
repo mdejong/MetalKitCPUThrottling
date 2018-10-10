@@ -14,6 +14,10 @@
 
 @property (nonatomic, retain) MTKView *mtkView;
 
+@property (nonatomic, retain) id<MTLLibrary> defaultLibrary;
+
+@property (nonatomic, retain) id<MTLComputePipelineState> computePipeline;
+
 // Current render size for Metal view
 
 @property (nonatomic, assign) vector_uint2 viewportSize;
@@ -36,6 +40,10 @@
   
   mtkView.device = MTLCreateSystemDefaultDevice();
   
+  id<MTLLibrary> defaultLibrary = [mtkView.device newDefaultLibrary];
+  NSAssert(defaultLibrary, @"defaultLibrary");
+  self.defaultLibrary = defaultLibrary;
+  
   [self setupMetalKitView:mtkView];
 }
 
@@ -44,6 +52,29 @@
   CGRect rect = self.view.frame;
   self.mtkView.frame = rect;
   NSLog(@"viewDidLayoutSubviews %3d x %3d", (int)rect.size.width, (int)rect.size.height);
+}
+
+// Create Metal compute pipeline
+
+- (id<MTLComputePipelineState>) makePipeline:(NSString*)pipelineLabel
+                          kernelFunctionName:(NSString*)kernelFunctionName
+{
+  // Load the vertex function from the library
+  
+  id <MTLFunction> kernelFunction = [self.defaultLibrary newFunctionWithName:kernelFunctionName];
+  NSAssert(kernelFunction, @"kernel function \"%@\" could not be loaded", kernelFunctionName);
+  
+  NSError *error = NULL;
+  
+  id<MTLComputePipelineState> state = [self.mtkView.device newComputePipelineStateWithFunction:kernelFunction
+                                                                                 error:&error];
+  
+  if (!state)
+  {
+    NSLog(@"Failed to created pipeline state, error %@", error);
+  }
+  
+  return state;
 }
 
 // Initialize with the MetalKit view from which we'll obtain our metal device
@@ -64,42 +95,9 @@
   
   mtkView.paused = FALSE;
   
-  /*
+  self.computePipeline = [self makePipeline:@"compute" kernelFunctionName:@"compute_kernel_emit_pixel"];
   
-  id<MTLLibrary> defaultLibrary = self.metalRenderContext.defaultLibrary;
-  
-  {
-    // Render to texture pipeline
-    
-    // Load the vertex function from the library
-    id <MTLFunction> vertexFunction = [defaultLibrary newFunctionWithName:@"vertexShader"];
-    
-    // Load the fragment function from the library
-    id <MTLFunction> fragmentFunction = [defaultLibrary newFunctionWithName:@"samplingPassThroughShader"];
-    
-    {
-      // Set up a descriptor for creating a pipeline state object
-      MTLRenderPipelineDescriptor *pipelineStateDescriptor = [[MTLRenderPipelineDescriptor alloc] init];
-      pipelineStateDescriptor.label = @"Render From Texture Pipeline";
-      pipelineStateDescriptor.vertexFunction = vertexFunction;
-      pipelineStateDescriptor.fragmentFunction = fragmentFunction;
-      pipelineStateDescriptor.colorAttachments[0].pixelFormat = mtkView.colorPixelFormat;
-      //pipelineStateDescriptor.stencilAttachmentPixelFormat =  mtkView.depthStencilPixelFormat; // MTLPixelFormatStencil8
-      
-      _renderFromTexturePipelineState = [_device newRenderPipelineStateWithDescriptor:pipelineStateDescriptor
-                                                                                error:&error];
-      if (!_renderFromTexturePipelineState)
-      {
-        // Pipeline State creation could fail if we haven't properly set up our pipeline descriptor.
-        //  If the Metal API validation is enabled, we can find out more information about what
-        //  went wrong.  (Metal API validation is enabled by default when a debug build is run
-        //  from Xcode)
-        NSLog(@"Failed to created pipeline state, error %@", error);
-      }
-    }
-  }
-
-  */
+  return;
 }
 
 // Called when view changes orientation or is resized

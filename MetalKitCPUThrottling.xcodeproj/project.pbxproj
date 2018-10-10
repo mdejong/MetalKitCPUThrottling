@@ -13,6 +13,7 @@
 		3C3176DE216E8D940064BDA8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3C3176DD216E8D940064BDA8 /* Assets.xcassets */; };
 		3C3176E1216E8D940064BDA8 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 3C3176DF216E8D940064BDA8 /* LaunchScreen.storyboard */; };
 		3C3176E4216E8D940064BDA8 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 3C3176E3216E8D940064BDA8 /* main.m */; };
+		3C3176EB216E99930064BDA8 /* Default.metal in Sources */ = {isa = PBXBuildFile; fileRef = 3C3176EA216E99930064BDA8 /* Default.metal */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -26,6 +27,7 @@
 		3C3176E0216E8D940064BDA8 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		3C3176E2216E8D940064BDA8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		3C3176E3216E8D940064BDA8 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		3C3176EA216E99930064BDA8 /* Default.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Default.metal; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -62,6 +64,7 @@
 				3C3176D5216E8D8E0064BDA8 /* AppDelegate.m */,
 				3C3176D7216E8D8E0064BDA8 /* ViewController.h */,
 				3C3176D8216E8D8E0064BDA8 /* ViewController.m */,
+				3C3176EA216E99930064BDA8 /* Default.metal */,
 				3C3176DA216E8D8E0064BDA8 /* Main.storyboard */,
 				3C3176DD216E8D940064BDA8 /* Assets.xcassets */,
 				3C3176DF216E8D940064BDA8 /* LaunchScreen.storyboard */,
@@ -144,6 +147,7 @@
 				3C3176D9216E8D8E0064BDA8 /* ViewController.m in Sources */,
 				3C3176E4216E8D940064BDA8 /* main.m in Sources */,
 				3C3176D6216E8D8E0064BDA8 /* AppDelegate.m in Sources */,
+				3C3176EB216E99930064BDA8 /* Default.metal in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
