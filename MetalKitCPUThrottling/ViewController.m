@@ -24,6 +24,10 @@
 
 @property (nonatomic, retain) id<MTLCommandQueue> commandQueue;
 
+// Buffer that will be read/written to in draw command
+
+@property (nonatomic, retain) NSMutableData *readWriteData;
+
 @end
 
 @implementation ViewController
@@ -31,6 +35,8 @@
 - (void )viewDidLoad {
   [super viewDidLoad];
   // Do any additional setup after loading the view, typically from a nib.
+  
+  self.readWriteData = [NSMutableData dataWithLength:1024*1024*2]; // 2 Meg
   
   CGRect rect = self.view.frame;
   MTKView *mtkView = [[MTKView alloc] initWithFrame:rect];
@@ -139,6 +145,24 @@
   }
   
   CFTimeInterval draw_start_time = CACurrentMediaTime();
+  
+  // Costly CPU operation
+  
+  {
+    uint32_t *pixelPtr = (uint32_t *) self.readWriteData.mutableBytes;
+    int numPixels = (int) self.readWriteData.length / sizeof(uint32_t);
+    
+    for (int i = 0; i < numPixels; i++) {
+      uint32_t pixel = pixelPtr[i];
+      uint8_t b0 = pixel & 0xFF;
+      uint8_t b1 = (pixel >> 8) & 0xFF;
+      uint8_t b2 = (pixel >> 16) & 0xFF;
+      uint8_t b3 = (pixel >> 24) & 0xFF;
+      
+      pixel = (b3 << 24) | (b0 << 16) | (b1 << 8) | (b2);
+      pixelPtr[i] = pixel;
+    }
+  }
   
   // Create a new command buffer
   
