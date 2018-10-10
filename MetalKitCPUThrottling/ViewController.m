@@ -22,6 +22,8 @@
 
 @property (nonatomic, assign) vector_uint2 viewportSize;
 
+@property (nonatomic, retain) id<MTLCommandQueue> commandQueue;
+
 @end
 
 @implementation ViewController
@@ -40,11 +42,11 @@
   
   mtkView.device = MTLCreateSystemDefaultDevice();
   
-  id<MTLLibrary> defaultLibrary = [mtkView.device newDefaultLibrary];
-  NSAssert(defaultLibrary, @"defaultLibrary");
-  self.defaultLibrary = defaultLibrary;
-  
   [self setupMetalKitView:mtkView];
+  
+  // Explicitly invoke size will change method the first itme
+  
+  [self mtkView:mtkView drawableSizeWillChange:mtkView.drawableSize];
 }
 
 - (void) viewDidLayoutSubviews {
@@ -82,27 +84,45 @@
 - (void) setupMetalKitView:(nonnull MTKView *)mtkView
 {
   const int isCaptureRenderedTextureEnabled = 0;
+
+  id<MTLLibrary> defaultLibrary = [mtkView.device newDefaultLibrary];
+  NSAssert(defaultLibrary, @"defaultLibrary");
+  self.defaultLibrary = defaultLibrary;
   
   if (isCaptureRenderedTextureEnabled) {
     mtkView.framebufferOnly = false;
   }
   
-  mtkView.delegate = (id<MTKViewDelegate>) self;
+  mtkView.delegate = self; // MTKViewDelegate
   
   mtkView.depthStencilPixelFormat = MTLPixelFormatInvalid;
   
+  mtkView.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
+  
   mtkView.preferredFramesPerSecond = 30;
   
-  mtkView.paused = FALSE;
+  //mtkView.paused = FALSE;
   
   self.computePipeline = [self makePipeline:@"compute" kernelFunctionName:@"compute_kernel_emit_pixel"];
+
+  self.commandQueue = [mtkView.device newCommandQueue];
+  
+  // Init with (-1,-1) until actual size method is invoked
+
+  {
+    vector_uint2 viewportSize;
+    viewportSize.x = -1;
+    viewportSize.y = -1;
+    self.viewportSize = viewportSize;
+  }
   
   return;
 }
 
 // Called when view changes orientation or is resized
 
-- (void)mtkView:(nonnull MTKView *)view drawableSizeWillChange:(CGSize)size {
+- (void)mtkView:(nonnull MTKView *)view drawableSizeWillChange:(CGSize)size
+{
   vector_uint2 viewportSize;
   viewportSize.x = size.width;
   viewportSize.y = size.height;
@@ -111,7 +131,90 @@
 
 - (void)drawInMTKView:(nonnull MTKView *)view
 {
-  NSLog(@"drawInMTKView");
+  //NSLog(@"drawInMTKView");
+  
+  if (self.viewportSize.x == -1) {
+    NSLog(@"drawInMTKView : viewportSize not set");
+    return;
+  }
+  
+  // Create a new command buffer
+  
+  id <MTLCommandBuffer> commandBuffer = [self.commandQueue commandBuffer];
+  commandBuffer.label = @"RenderCompute";
+  
+  /*
+  
+  // Compute shader ?
+  
+  // Compute kernel
+  
+  id<MTLTexture> outputTexture = renderFrame.outputTexture;
+  
+  {
+    id <MTLComputeCommandEncoder> computeEncoder = [commandBuffer computeCommandEncoder];
+    
+#if defined(DEBUG)
+    assert(computeEncoder);
+#endif // DEBUG
+    
+    NSString *debugLabel = @"Kernel";
+    computeEncoder.label = debugLabel;
+    [computeEncoder pushDebugGroup:debugLabel];
+    
+    [computeEncoder setComputePipelineState:self.computePipeline];
+    
+    [computeEncoder setTexture:outputTexture atIndex:0];
+    
+    MTLSize threadgroupsPerGrid = MTLSizeMake(1, 1, 1);
+    MTLSize threadsPerThreadgroup = MTLSizeMake(1, 1, 1);
+    
+#if defined(DEBUG)
+    assert(threadgroupsPerGrid.width != 0);
+#endif // DEBUG
+    
+    [computeEncoder dispatchThreadgroups:threadgroupsPerGrid
+                   threadsPerThreadgroup:threadsPerThreadgroup];
+    
+    [computeEncoder popDebugGroup];
+    
+    [computeEncoder endEncoding];
+  }
+   
+  */
+  
+  // Render to view
+  
+  MTKView *mtkView = self.mtkView;
+  
+  MTLRenderPassDescriptor *renderPassDescriptor = mtkView.currentRenderPassDescriptor;
+  
+  if (renderPassDescriptor != nil) {
+    renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0.0, 1.0, 0.0, 1.0); // (R,G,B,A)
+    renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionDontCare;
+    renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
+    
+    id <MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
+    
+    [renderEncoder pushDebugGroup:@"RenderFromTexture"];
+    
+    // Set bounds for clear operation
+    
+    MTLViewport mtlvp = {0.0, 0.0, self.viewportSize.x, self.viewportSize.y, -1.0, 1.0 };
+    [renderEncoder setViewport:mtlvp];
+    
+    [renderEncoder popDebugGroup];
+    
+    [renderEncoder endEncoding];
+  }
+
+  id<CAMetalDrawable> drawable = mtkView.currentDrawable;
+  
+  if (drawable) {
+    [commandBuffer presentDrawable:drawable];
+    [commandBuffer commit];
+  }
+  
   return;
 }
 
