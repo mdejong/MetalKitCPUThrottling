@@ -142,48 +142,8 @@
   
   id <MTLCommandBuffer> commandBuffer = [self.commandQueue commandBuffer];
   commandBuffer.label = @"RenderCompute";
-  
-  /*
-  
-  // Compute shader ?
-  
-  // Compute kernel
-  
-  id<MTLTexture> outputTexture = renderFrame.outputTexture;
-  
-  {
-    id <MTLComputeCommandEncoder> computeEncoder = [commandBuffer computeCommandEncoder];
-    
-#if defined(DEBUG)
-    assert(computeEncoder);
-#endif // DEBUG
-    
-    NSString *debugLabel = @"Kernel";
-    computeEncoder.label = debugLabel;
-    [computeEncoder pushDebugGroup:debugLabel];
-    
-    [computeEncoder setComputePipelineState:self.computePipeline];
-    
-    [computeEncoder setTexture:outputTexture atIndex:0];
-    
-    MTLSize threadgroupsPerGrid = MTLSizeMake(1, 1, 1);
-    MTLSize threadsPerThreadgroup = MTLSizeMake(1, 1, 1);
-    
-#if defined(DEBUG)
-    assert(threadgroupsPerGrid.width != 0);
-#endif // DEBUG
-    
-    [computeEncoder dispatchThreadgroups:threadgroupsPerGrid
-                   threadsPerThreadgroup:threadsPerThreadgroup];
-    
-    [computeEncoder popDebugGroup];
-    
-    [computeEncoder endEncoding];
-  }
-   
-  */
-  
-  // Render to view
+
+  // Clear to background color with a trival render operation
   
   MTKView *mtkView = self.mtkView;
   
@@ -191,12 +151,10 @@
   
   if (renderPassDescriptor != nil) {
     renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0.0, 1.0, 0.0, 1.0); // (R,G,B,A)
-    renderPassDescriptor.colorAttachments[0].loadAction = MTLLoadActionDontCare;
-    renderPassDescriptor.colorAttachments[0].storeAction = MTLStoreActionStore;
     
     id <MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
     
-    [renderEncoder pushDebugGroup:@"RenderFromTexture"];
+    [renderEncoder pushDebugGroup:@"RenderToColor"];
     
     // Set bounds for clear operation
     
