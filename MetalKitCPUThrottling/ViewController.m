@@ -138,6 +138,8 @@
     return;
   }
   
+  CFTimeInterval draw_start_time = CACurrentMediaTime();
+  
   // Create a new command buffer
   
   id <MTLCommandBuffer> commandBuffer = [self.commandQueue commandBuffer];
@@ -172,6 +174,10 @@
     [commandBuffer presentDrawable:drawable];
     [commandBuffer commit];
   }
+  
+  CFTimeInterval draw_stop_time = CACurrentMediaTime();
+  
+  printf("drawInMTKView time %.2f ms\n", (draw_stop_time-draw_start_time) * 1000);
   
   return;
 }
