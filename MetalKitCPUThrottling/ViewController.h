@@ -6,10 +6,10 @@
 //  Copyright © 2018 HelpURock. All rights reserved.
 //
 
-#import <UIKit/UIKit.h>
+@import UIKit;
+@import MetalKit;
 
-@interface ViewController : UIViewController
-
+@interface ViewController : UIViewController<MTKViewDelegate>
 
 @end
 
