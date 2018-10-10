@@ -137,7 +137,7 @@
 
 - (void)drawInMTKView:(nonnull MTKView *)view
 {
-  //NSLog(@"drawInMTKView");
+  //NSLog(@"drawInMTKView %p", view);
   
   if (self.viewportSize.x == -1) {
     NSLog(@"drawInMTKView : viewportSize not set");
