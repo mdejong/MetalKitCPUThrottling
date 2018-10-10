@@ -8,16 +8,36 @@
 
 #import "ViewController.h"
 
+@import MetalKit;
+
 @interface ViewController ()
+
+@property (nonatomic, retain) MTKView *mtkView;
 
 @end
 
 @implementation ViewController
 
-- (void)viewDidLoad {
+- (void )viewDidLoad {
   [super viewDidLoad];
   // Do any additional setup after loading the view, typically from a nib.
+  
+  CGRect rect = self.view.frame;
+  MTKView *mtkView = [[MTKView alloc] initWithFrame:rect];
+  self.mtkView = mtkView;
+
+  mtkView.backgroundColor = [UIColor redColor];
+  
+  [self.view addSubview:mtkView];
+  
+  mtkView.device = MTLCreateSystemDefaultDevice();
 }
 
+- (void) viewDidLayoutSubviews {
+  [super viewDidLayoutSubviews];
+  CGRect rect = self.view.frame;
+  self.mtkView.frame = rect;
+  NSLog(@"viewDidLayoutSubviews %3d x %3d", (int)rect.size.width, (int)rect.size.height);
+}
 
 @end
