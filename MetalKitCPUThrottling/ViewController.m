@@ -14,6 +14,8 @@
 
 #import "AAPLShaderTypes.h"
 
+const static int textureDim = 1024;
+
 @interface ViewController ()
 
 @property (nonatomic, retain) MTKView *mtkView;
@@ -48,7 +50,7 @@
   [super viewDidLoad];
   // Do any additional setup after loading the view, typically from a nib.
   
-  self.readWriteData = [NSMutableData dataWithLength:1024*1024*2]; // 2 Meg
+  self.readWriteData = [NSMutableData dataWithLength:textureDim*textureDim*sizeof(uint32_t)];
   
   CGRect rect = self.view.frame;
   MTKView *mtkView = [[MTKView alloc] initWithFrame:rect];
@@ -110,21 +112,15 @@
   self.commandQueue = self.metalRenderContext.commandQueue;
   
   uint32_t *inPixels = NULL;
-  uint32_t buffer[32*32];
   
   if (1)
   {
-    inPixels = buffer;
-    int numPixels = sizeof(buffer) / sizeof(uint32_t);
+    NSMutableData *mData = [NSMutableData dataWithLength:textureDim*textureDim*sizeof(uint32_t)];
+    inPixels = mData.mutableBytes;
+    int numPixels = (int)mData.length / sizeof(uint32_t);
     
     for (int i = 0; i < numPixels; i++) {
       uint32_t pixel;
-      
-      // Green
-//      uint32_t b0 = 0;
-//      uint32_t b1 = 0xFF;
-//      uint32_t b2 = 0;
-//      uint32_t b3 = 0xFF;
 
       // Blue
       uint32_t b0 = 0xFF;
@@ -138,7 +134,7 @@
     }
   }
   
-  self.renderTexture = [self.metalRenderContext makeBGRATexture:CGSizeMake(32,32) pixels:inPixels usage:MTLTextureUsageRenderTarget|MTLTextureUsageShaderRead|MTLTextureUsageShaderWrite];
+  self.renderTexture = [self.metalRenderContext makeBGRATexture:CGSizeMake(textureDim,textureDim) pixels:inPixels usage:MTLTextureUsageRenderTarget|MTLTextureUsageShaderRead|MTLTextureUsageShaderWrite];
   
   // Init with (-1,-1) until actual size method is invoked
 
@@ -173,22 +169,45 @@
   
   CFTimeInterval draw_start_time = CACurrentMediaTime();
   
-  // Costly CPU operation
-  
+  // Costly CPU operation : swap Blue and Red channel values
   {
     uint32_t *pixelPtr = (uint32_t *) self.readWriteData.mutableBytes;
     int numPixels = (int) self.readWriteData.length / sizeof(uint32_t);
+
+    {
+      id<MTLTexture> texture = self.renderTexture;
+      int width = (int) texture.width;
+      int height = (int) texture.height;
+      
+      assert((width * height * sizeof(uint32_t)) == self.readWriteData.length);
+      
+      [texture getBytes:(void*)pixelPtr
+            bytesPerRow:width*sizeof(uint32_t)
+          bytesPerImage:width*height*sizeof(uint32_t)
+             fromRegion:MTLRegionMake2D(0, 0, width, height)
+            mipmapLevel:0
+                  slice:0];
+    }
     
     for (int i = 0; i < numPixels; i++) {
       uint32_t pixel = pixelPtr[i];
-      uint8_t b0 = pixel & 0xFF;
-      uint8_t b1 = (pixel >> 8) & 0xFF;
-      uint8_t b2 = (pixel >> 16) & 0xFF;
-      uint8_t b3 = (pixel >> 24) & 0xFF;
       
-      pixel = (b3 << 24) | (b0 << 16) | (b1 << 8) | (b2);
+      uint32_t b0 = pixel & 0xFF;
+      uint32_t b1 = (pixel >> 8) & 0xFF;
+      uint32_t b2 = (pixel >> 16) & 0xFF;
+      uint32_t b3 = (pixel >> 24) & 0xFF;
+      
+      // swap
+      uint32_t tmp = b0;
+      b0 = b2;
+      b2 = tmp;
+      
+      pixel = (b3 << 24) | (b2 << 16) | (b1 << 8) | (b0);
       pixelPtr[i] = pixel;
     }
+    
+    // Copy back into texture
+    [self.metalRenderContext fillBGRATexture:self.renderTexture pixels:pixelPtr];
   }
   
   // Create a new command buffer
