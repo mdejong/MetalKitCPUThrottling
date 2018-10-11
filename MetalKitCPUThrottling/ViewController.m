@@ -22,8 +22,6 @@ const static int textureDim = 1024;
 
 @property (nonatomic, retain) MetalRenderContext *metalRenderContext;
 
-@property (nonatomic, retain) id<MTLComputePipelineState> computePipeline;
-
 // Render from texture into the Metal view pipeline
 
 @property (nonatomic, retain) id<MTLRenderPipelineState> renderIntoViewPipelineState;
@@ -102,9 +100,6 @@ const static int textureDim = 1024;
   mtkView.preferredFramesPerSecond = 30;
   
   //mtkView.paused = FALSE;
-  
-  self.computePipeline = [self.metalRenderContext makePipeline:MTLPixelFormatBGRA8Unorm pipelineLabel:@"compute" kernelFunctionName:@"compute_kernel_emit_pixel"];
-  NSAssert(self.computePipeline, @"computePipeline");
 
   self.renderIntoViewPipelineState = [self.metalRenderContext makePipeline:MTLPixelFormatBGRA8Unorm pipelineLabel:@"renderIntoView" numAttachments:1 vertexFunctionName:@"vertexShader" fragmentFunctionName:@"samplingPassThroughShader"];
   NSAssert(self.renderIntoViewPipelineState, @"renderIntoViewPipelineState");
@@ -169,7 +164,7 @@ const static int textureDim = 1024;
   
   CFTimeInterval draw_start_time = CACurrentMediaTime();
   
-  // Costly CPU operation : swap Blue and Red channel values
+  // Costly CPU operation : swap Blue and Green channels
   {
     uint32_t *pixelPtr = (uint32_t *) self.readWriteData.mutableBytes;
     int numPixels = (int) self.readWriteData.length / sizeof(uint32_t);
@@ -199,8 +194,8 @@ const static int textureDim = 1024;
       
       // swap
       uint32_t tmp = b0;
-      b0 = b2;
-      b2 = tmp;
+      b0 = b1;
+      b1 = tmp;
       
       pixel = (b3 << 24) | (b2 << 16) | (b1 << 8) | (b0);
       pixelPtr[i] = pixel;
