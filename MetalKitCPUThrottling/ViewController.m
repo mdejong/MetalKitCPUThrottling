@@ -79,18 +79,14 @@
   const int isCaptureRenderedTextureEnabled = 0;
 
   if (self.metalRenderContext == nil) {
+    self.metalRenderContext = [[MetalRenderContext alloc] init];
+    
     id <MTLDevice> device = MTLCreateSystemDefaultDevice();
     
     mtkView.device = device;
     
-    self.metalRenderContext = [[MetalRenderContext alloc] init];
-    
-    [self.metalRenderContext setupMetal:mtkView.device];
+    [self.metalRenderContext setupMetal:device];
   }
-  
-  //id<MTLLibrary> defaultLibrary = [mtkView.device newDefaultLibrary];
-  //NSAssert(defaultLibrary, @"defaultLibrary");
-  //self.defaultLibrary = defaultLibrary;
   
   if (isCaptureRenderedTextureEnabled) {
     mtkView.framebufferOnly = false;
@@ -124,19 +120,17 @@
     for (int i = 0; i < numPixels; i++) {
       uint32_t pixel;
       
-      // Green with a bit of red
+      // Green
+//      uint32_t b0 = 0;
+//      uint32_t b1 = 0xFF;
+//      uint32_t b2 = 0;
+//      uint32_t b3 = 0xFF;
 
-      uint32_t b0 = 0;
-      uint32_t b1 = 0xFF/4 * 3;
-      uint32_t b2 = 0xFF/4;
-      uint32_t b3 = 0xFF;
-
-      /*
+      // Blue
       uint32_t b0 = 0xFF;
       uint32_t b1 = 0x0;
       uint32_t b2 = 0x0;
       uint32_t b3 = 0xFF;
-      */
       
       pixel = (b3 << 24) | (b2 << 16) | (b1 << 8) | (b0);
       
