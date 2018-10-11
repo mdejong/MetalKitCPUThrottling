@@ -10,13 +10,21 @@
 
 @import MetalKit;
 
+#import "MetalRenderContext.h"
+
+#import "AAPLShaderTypes.h"
+
 @interface ViewController ()
 
 @property (nonatomic, retain) MTKView *mtkView;
 
-@property (nonatomic, retain) id<MTLLibrary> defaultLibrary;
+@property (nonatomic, retain) MetalRenderContext *metalRenderContext;
 
 @property (nonatomic, retain) id<MTLComputePipelineState> computePipeline;
+
+// Render from texture into the Metal view pipeline
+
+@property (nonatomic, retain) id<MTLRenderPipelineState> renderIntoViewPipelineState;
 
 // Current render size for Metal view
 
@@ -27,6 +35,10 @@
 // Buffer that will be read/written to in draw command
 
 @property (nonatomic, retain) NSMutableData *readWriteData;
+
+// Texture that will be rendered into and then the output will be resized into the view
+
+@property (nonatomic, retain) id<MTLTexture> renderTexture;
 
 @end
 
@@ -46,8 +58,6 @@
   
   [self.view addSubview:mtkView];
   
-  mtkView.device = MTLCreateSystemDefaultDevice();
-  
   [self setupMetalKitView:mtkView];
   
   // Explicitly invoke size will change method the first itme
@@ -62,38 +72,25 @@
   NSLog(@"viewDidLayoutSubviews %3d x %3d", (int)rect.size.width, (int)rect.size.height);
 }
 
-// Create Metal compute pipeline
-
-- (id<MTLComputePipelineState>) makePipeline:(NSString*)pipelineLabel
-                          kernelFunctionName:(NSString*)kernelFunctionName
-{
-  // Load the vertex function from the library
-  
-  id <MTLFunction> kernelFunction = [self.defaultLibrary newFunctionWithName:kernelFunctionName];
-  NSAssert(kernelFunction, @"kernel function \"%@\" could not be loaded", kernelFunctionName);
-  
-  NSError *error = NULL;
-  
-  id<MTLComputePipelineState> state = [self.mtkView.device newComputePipelineStateWithFunction:kernelFunction
-                                                                                 error:&error];
-  
-  if (!state)
-  {
-    NSLog(@"Failed to created pipeline state, error %@", error);
-  }
-  
-  return state;
-}
-
 // Initialize with the MetalKit view from which we'll obtain our metal device
 
 - (void) setupMetalKitView:(nonnull MTKView *)mtkView
 {
   const int isCaptureRenderedTextureEnabled = 0;
 
-  id<MTLLibrary> defaultLibrary = [mtkView.device newDefaultLibrary];
-  NSAssert(defaultLibrary, @"defaultLibrary");
-  self.defaultLibrary = defaultLibrary;
+  if (self.metalRenderContext == nil) {
+    id <MTLDevice> device = MTLCreateSystemDefaultDevice();
+    
+    mtkView.device = device;
+    
+    self.metalRenderContext = [[MetalRenderContext alloc] init];
+    
+    [self.metalRenderContext setupMetal:mtkView.device];
+  }
+  
+  //id<MTLLibrary> defaultLibrary = [mtkView.device newDefaultLibrary];
+  //NSAssert(defaultLibrary, @"defaultLibrary");
+  //self.defaultLibrary = defaultLibrary;
   
   if (isCaptureRenderedTextureEnabled) {
     mtkView.framebufferOnly = false;
@@ -101,17 +98,53 @@
   
   mtkView.delegate = self; // MTKViewDelegate
   
-  mtkView.depthStencilPixelFormat = MTLPixelFormatInvalid;
-  
   mtkView.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
+  mtkView.depthStencilPixelFormat = MTLPixelFormatInvalid;
   
   mtkView.preferredFramesPerSecond = 30;
   
   //mtkView.paused = FALSE;
   
-  self.computePipeline = [self makePipeline:@"compute" kernelFunctionName:@"compute_kernel_emit_pixel"];
+  self.computePipeline = [self.metalRenderContext makePipeline:MTLPixelFormatBGRA8Unorm pipelineLabel:@"compute" kernelFunctionName:@"compute_kernel_emit_pixel"];
+  NSAssert(self.computePipeline, @"computePipeline");
 
-  self.commandQueue = [mtkView.device newCommandQueue];
+  self.renderIntoViewPipelineState = [self.metalRenderContext makePipeline:MTLPixelFormatBGRA8Unorm pipelineLabel:@"renderIntoView" numAttachments:1 vertexFunctionName:@"vertexShader" fragmentFunctionName:@"samplingPassThroughShader"];
+  NSAssert(self.renderIntoViewPipelineState, @"renderIntoViewPipelineState");
+  
+  self.commandQueue = self.metalRenderContext.commandQueue;
+  
+  uint32_t *inPixels = NULL;
+  uint32_t buffer[32*32];
+  
+  if (1)
+  {
+    inPixels = buffer;
+    int numPixels = sizeof(buffer) / sizeof(uint32_t);
+    
+    for (int i = 0; i < numPixels; i++) {
+      uint32_t pixel;
+      
+      // Green with a bit of red
+
+      uint32_t b0 = 0;
+      uint32_t b1 = 0xFF/4 * 3;
+      uint32_t b2 = 0xFF/4;
+      uint32_t b3 = 0xFF;
+
+      /*
+      uint32_t b0 = 0xFF;
+      uint32_t b1 = 0x0;
+      uint32_t b2 = 0x0;
+      uint32_t b3 = 0xFF;
+      */
+      
+      pixel = (b3 << 24) | (b2 << 16) | (b1 << 8) | (b0);
+      
+      inPixels[i] = pixel;
+    }
+  }
+  
+  self.renderTexture = [self.metalRenderContext makeBGRATexture:CGSizeMake(32,32) pixels:inPixels usage:MTLTextureUsageRenderTarget|MTLTextureUsageShaderRead|MTLTextureUsageShaderWrite];
   
   // Init with (-1,-1) until actual size method is invoked
 
@@ -176,16 +209,28 @@
   MTLRenderPassDescriptor *renderPassDescriptor = mtkView.currentRenderPassDescriptor;
   
   if (renderPassDescriptor != nil) {
-    renderPassDescriptor.colorAttachments[0].clearColor = MTLClearColorMake(0.0, 1.0, 0.0, 1.0); // (R,G,B,A)
-    
     id <MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
     
-    [renderEncoder pushDebugGroup:@"RenderToColor"];
+    renderEncoder.label = @"RenderIntoView";
     
-    // Set bounds for clear operation
+    [renderEncoder pushDebugGroup:@"RenderIntoView"];
+    
+    [renderEncoder setRenderPipelineState:self.renderIntoViewPipelineState];
     
     MTLViewport mtlvp = {0.0, 0.0, self.viewportSize.x, self.viewportSize.y, -1.0, 1.0 };
     [renderEncoder setViewport:mtlvp];
+    
+    [renderEncoder setVertexBuffer:self.metalRenderContext.identityVerticesBuffer
+                            offset:0
+                           atIndex:AAPLVertexInputIndexVertices];
+    
+    [renderEncoder setFragmentTexture:self.renderTexture
+                              atIndex:AAPLTextureIndexes];
+    
+    // Draw the 3 vertices of our triangle
+    [renderEncoder drawPrimitives:MTLPrimitiveTypeTriangle
+                      vertexStart:0
+                      vertexCount:self.metalRenderContext.identityNumVertices];
     
     [renderEncoder popDebugGroup];
     

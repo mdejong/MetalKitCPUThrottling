@@ -14,6 +14,7 @@
 		3C3176E1216E8D940064BDA8 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 3C3176DF216E8D940064BDA8 /* LaunchScreen.storyboard */; };
 		3C3176E4216E8D940064BDA8 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 3C3176E3216E8D940064BDA8 /* main.m */; };
 		3C3176EB216E99930064BDA8 /* Default.metal in Sources */ = {isa = PBXBuildFile; fileRef = 3C3176EA216E99930064BDA8 /* Default.metal */; };
+		3C8C9A59216FDD160033615B /* MetalRenderContext.m in Sources */ = {isa = PBXBuildFile; fileRef = 3C8C9A57216FDD160033615B /* MetalRenderContext.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +29,9 @@
 		3C3176E2216E8D940064BDA8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		3C3176E3216E8D940064BDA8 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		3C3176EA216E99930064BDA8 /* Default.metal */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.metal; path = Default.metal; sourceTree = "<group>"; };
+		3C8C9A57216FDD160033615B /* MetalRenderContext.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MetalRenderContext.m; sourceTree = "<group>"; };
+		3C8C9A58216FDD160033615B /* MetalRenderContext.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MetalRenderContext.h; sourceTree = "<group>"; };
+		3C8C9A5A216FDFCB0033615B /* AAPLShaderTypes.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AAPLShaderTypes.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -64,6 +68,9 @@
 				3C3176D5216E8D8E0064BDA8 /* AppDelegate.m */,
 				3C3176D7216E8D8E0064BDA8 /* ViewController.h */,
 				3C3176D8216E8D8E0064BDA8 /* ViewController.m */,
+				3C8C9A58216FDD160033615B /* MetalRenderContext.h */,
+				3C8C9A57216FDD160033615B /* MetalRenderContext.m */,
+				3C8C9A5A216FDFCB0033615B /* AAPLShaderTypes.h */,
 				3C3176EA216E99930064BDA8 /* Default.metal */,
 				3C3176DA216E8D8E0064BDA8 /* Main.storyboard */,
 				3C3176DD216E8D940064BDA8 /* Assets.xcassets */,
@@ -148,6 +155,7 @@
 				3C3176E4216E8D940064BDA8 /* main.m in Sources */,
 				3C3176D6216E8D8E0064BDA8 /* AppDelegate.m in Sources */,
 				3C3176EB216E99930064BDA8 /* Default.metal in Sources */,
+				3C8C9A59216FDD160033615B /* MetalRenderContext.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -290,7 +298,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 6Y6S8GVX9S;
+				DEVELOPMENT_TEAM = 9F74CLHA49;
 				INFOPLIST_FILE = MetalKitCPUThrottling/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 10.3;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -308,7 +316,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 6Y6S8GVX9S;
+				DEVELOPMENT_TEAM = 9F74CLHA49;
 				INFOPLIST_FILE = MetalKitCPUThrottling/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 10.3;
 				LD_RUNPATH_SEARCH_PATHS = (
