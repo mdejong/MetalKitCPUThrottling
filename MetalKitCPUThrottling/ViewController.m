@@ -198,26 +198,24 @@ const static int textureDim = 1024;
     }
 
     for (int count = 0; count < 3; count++) {
-    
-    for (int i = 0; i < numPixels; i++) {
-      uint32_t pixel = pixelPtr[i];
-      
-      uint32_t b0 = pixel & 0xFF;
-      uint32_t b1 = (pixel >> 8) & 0xFF;
-      uint32_t b2 = (pixel >> 16) & 0xFF;
-      uint32_t b3 = (pixel >> 24) & 0xFF;
-      
-      // swap
-      uint32_t tmp = b0;
-      b0 = b1;
-      b1 = tmp;
-      
-      pixel = (b3 << 24) | (b2 << 16) | (b1 << 8) | (b0);
-      pixelPtr[i] = pixel;
+      for (int i = 0; i < numPixels; i++) {
+        uint32_t pixel = pixelPtr[i];
+        
+        uint32_t b0 = pixel & 0xFF;
+        uint32_t b1 = (pixel >> 8) & 0xFF;
+        uint32_t b2 = (pixel >> 16) & 0xFF;
+        uint32_t b3 = (pixel >> 24) & 0xFF;
+        
+        // swap
+        uint32_t tmp = b0;
+        b0 = b1;
+        b1 = tmp;
+        
+        pixel = (b3 << 24) | (b2 << 16) | (b1 << 8) | (b0);
+        pixelPtr[i] = pixel;
+      }
     }
-      
-    }
-    
+
     // Copy into texture
     [self.metalRenderContext fillBGRATexture:self.renderTexture pixels:pixelPtr];
   }
