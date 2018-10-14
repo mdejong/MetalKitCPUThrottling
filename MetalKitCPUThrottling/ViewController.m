@@ -50,6 +50,18 @@ const static int textureDim = 1024;
   
   self.readWriteData = [NSMutableData dataWithLength:textureDim*textureDim*sizeof(uint32_t)];
   
+  // Costly CPU operation : swap Blue and Green channels
+  {
+    uint32_t *pixelPtr = (uint32_t *) self.readWriteData.mutableBytes;
+    int numPixels = (int) self.readWriteData.length / sizeof(uint32_t);
+    
+    uint32_t renderPixel = 0xFF0000FF; // Blue
+    
+    for (int i = 0; i < numPixels; i++) {
+      pixelPtr[i] = renderPixel;
+    }
+  }
+  
   CGRect rect = self.view.frame;
   MTKView *mtkView = [[MTKView alloc] initWithFrame:rect];
   self.mtkView = mtkView;
@@ -169,6 +181,7 @@ const static int textureDim = 1024;
     uint32_t *pixelPtr = (uint32_t *) self.readWriteData.mutableBytes;
     int numPixels = (int) self.readWriteData.length / sizeof(uint32_t);
 
+    if ((0))
     {
       id<MTLTexture> texture = self.renderTexture;
       int width = (int) texture.width;
@@ -183,6 +196,8 @@ const static int textureDim = 1024;
             mipmapLevel:0
                   slice:0];
     }
+
+    for (int count = 0; count < 3; count++) {
     
     for (int i = 0; i < numPixels; i++) {
       uint32_t pixel = pixelPtr[i];
@@ -200,8 +215,10 @@ const static int textureDim = 1024;
       pixel = (b3 << 24) | (b2 << 16) | (b1 << 8) | (b0);
       pixelPtr[i] = pixel;
     }
+      
+    }
     
-    // Copy back into texture
+    // Copy into texture
     [self.metalRenderContext fillBGRATexture:self.renderTexture pixels:pixelPtr];
   }
   
