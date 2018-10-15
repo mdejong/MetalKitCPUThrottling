@@ -140,7 +140,7 @@ const static int textureDim = 1024;
        
       */
       
-      // Read existing buffer values and swap Blue to Green
+      // Read existing buffer values and swap Blue to Green multiple times
       
       for (int count = 0; count < 3; count++) {
         for (int i = 0; i < numPixels; i++) {
