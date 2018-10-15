@@ -94,6 +94,7 @@ const static int textureDim = 1024;
 - (void) doDecodeOp
 {
 //#define DECODE_PRINTF
+//#define TEXTURE_COPY_PRINTF
   
   // Kick off decode
   
@@ -174,8 +175,17 @@ const static int textureDim = 1024;
       
       dispatch_sync(dispatch_get_main_queue(), ^{
         // Modify availableTextures in main thread only
+
+#if defined(TEXTURE_COPY_PRINTF)
+        CFTimeInterval copy_start_time = CACurrentMediaTime();
+#endif // TEXTURE_COPY_PRINTF
         
-        __block id<MTLTexture> renderIntoTexture;
+        id<MTLTexture> renderIntoTexture;
+        
+#if defined(DEBUG)
+        assert(weakSelf.availableTextures != nil);
+        assert(weakSelf.availableTextures.count > 0);
+#endif // DEBUG
         
         renderIntoTexture = weakSelf.availableTextures[0];
         [weakSelf.availableTextures removeObjectAtIndex:0];
@@ -188,6 +198,12 @@ const static int textureDim = 1024;
         [weakSelf.metalRenderContext fillBGRATexture:renderIntoTexture pixels:pixelPtr];
         
         [weakSelf.renderedTextures addObject:renderIntoTexture];
+        
+#if defined(TEXTURE_COPY_PRINTF)
+        CFTimeInterval copy_end_time = CACurrentMediaTime();
+        
+        printf("texture copy time %.2f ms\n", (copy_end_time-copy_start_time) * 1000);
+#endif // TEXTURE_COPY_PRINTF
       });
     }
     
