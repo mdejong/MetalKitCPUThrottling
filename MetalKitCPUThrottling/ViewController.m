@@ -15,6 +15,7 @@
 #import "AAPLShaderTypes.h"
 
 const static int textureDim = 1024;
+//const static int textureDim = 1024*2;
 
 @interface ViewController ()
 
@@ -38,7 +39,15 @@ const static int textureDim = 1024;
 
 // Texture that will be rendered into and then the output will be resized into the view
 
-@property (nonatomic, retain) id<MTLTexture> renderTexture;
+@property (nonatomic, retain) id<MTLTexture> renderTexture1;
+@property (nonatomic, retain) id<MTLTexture> renderTexture2;
+
+@property (nonatomic, retain) NSMutableArray *availableTextures;
+@property (nonatomic, retain) NSMutableArray *renderedTextures;
+
+//@property (nonatomic, retain) dispatch_queue_t serialQueue;
+
+@property (nonatomic, retain) dispatch_semaphore_t decodeTextureSemaphore;
 
 @end
 
@@ -50,17 +59,11 @@ const static int textureDim = 1024;
   
   self.readWriteData = [NSMutableData dataWithLength:textureDim*textureDim*sizeof(uint32_t)];
   
-  // Costly CPU operation : swap Blue and Green channels
-  {
-    uint32_t *pixelPtr = (uint32_t *) self.readWriteData.mutableBytes;
-    int numPixels = (int) self.readWriteData.length / sizeof(uint32_t);
-    
-    uint32_t renderPixel = 0xFF0000FF; // Blue
-    
-    for (int i = 0; i < numPixels; i++) {
-      pixelPtr[i] = renderPixel;
-    }
-  }
+  [self pixelSetAllBlue];
+  
+  //self.serialQueue = dispatch_queue_create("com.serial.queue", DISPATCH_QUEUE_SERIAL);
+  
+  self.decodeTextureSemaphore = dispatch_semaphore_create(0);
   
   CGRect rect = self.view.frame;
   MTKView *mtkView = [[MTKView alloc] initWithFrame:rect];
@@ -77,6 +80,193 @@ const static int textureDim = 1024;
   [self mtkView:mtkView drawableSizeWillChange:mtkView.drawableSize];
 }
 
+- (void) pixelSetAllBlue
+{
+  NSMutableData *readWriteData = self.readWriteData;
+  
+  uint32_t *pixelPtr = (uint32_t *) readWriteData.mutableBytes;
+  int numPixels = (int) readWriteData.length / sizeof(uint32_t);
+  
+  uint32_t renderPixel = 0xFF0000FF; // Blue
+  
+  for (int i = 0; i < numPixels; i++) {
+    pixelPtr[i] = renderPixel;
+  }
+}
+
+- (void) doDecodeOp
+{
+#define DECODE_PRINTF
+  
+  // Kick off decode
+  
+  __weak typeof(self) weakSelf = self;
+  __block typeof(self.readWriteData) readWriteData = self.readWriteData;
+  
+  dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH,0), ^{
+    
+    while (1) {
+      // FIXME: check exit decoding loop condition on weakSelf here
+      
+#if defined(DECODE_PRINTF)
+      CFTimeInterval decode_start_time = CACurrentMediaTime();
+      
+      printf("decode into readWriteData\n");
+#endif // DECODE_PRINTF
+      
+      // Execute CPU intensive operation, this logic grabs the next available
+      // texture once it becomes available.
+      
+      uint32_t *pixelPtr = (uint32_t *) readWriteData.mutableBytes;
+      int numPixels = (int) readWriteData.length / sizeof(uint32_t);
+      
+      /*
+      
+      uint32_t renderPixelBlue = 0xFF0000FF; // Blue
+      uint32_t renderPixelGreen = 0xFF00FF00; // Green
+
+      uint32_t firstPixel = pixelPtr[0];
+      
+      uint32_t renderPixel;
+      
+      if (firstPixel == renderPixelBlue) {
+        renderPixel = renderPixelGreen;
+      } else {
+        renderPixel = renderPixelBlue;
+      }
+      
+      for (int i = 0; i < numPixels; i++) {
+        pixelPtr[i] = renderPixel;
+      }
+       
+      */
+      
+      // Read existing buffer values and swap Blue to Green
+      
+      for (int count = 0; count < 3; count++) {
+        for (int i = 0; i < numPixels; i++) {
+          uint32_t pixel = pixelPtr[i];
+          
+          uint32_t b0 = pixel & 0xFF;
+          uint32_t b1 = (pixel >> 8) & 0xFF;
+          uint32_t b2 = (pixel >> 16) & 0xFF;
+          uint32_t b3 = (pixel >> 24) & 0xFF;
+          
+          // swap
+          uint32_t tmp = b0;
+          b0 = b1;
+          b1 = tmp;
+          
+          pixel = (b3 << 24) | (b2 << 16) | (b1 << 8) | (b0);
+          pixelPtr[i] = pixel;
+        }
+      }
+      
+#if defined(DECODE_PRINTF)
+      CFTimeInterval decode_stop_time = CACurrentMediaTime();
+      
+      printf("decode render %.2f ms, waiting for output buffer\n", (decode_stop_time-decode_start_time) * 1000);
+#endif // DECODE_PRINTF
+      
+      // Wait for signal that indicates that an output buffer is available
+      
+      dispatch_semaphore_wait(weakSelf.decodeTextureSemaphore, DISPATCH_TIME_FOREVER);
+      
+      // Copy into texture on main thread
+      
+      dispatch_sync(dispatch_get_main_queue(), ^{
+        // Modify availableTextures in main thread only
+        
+        __block id<MTLTexture> renderIntoTexture;
+        
+        renderIntoTexture = weakSelf.availableTextures[0];
+        [weakSelf.availableTextures removeObjectAtIndex:0];
+        
+#if defined(DECODE_PRINTF)
+        printf("copy into texture on main thread\n");
+#endif // DECODE_PRINTF
+        
+        // Copy into texture 1 or texture 2
+        [weakSelf.metalRenderContext fillBGRATexture:renderIntoTexture pixels:pixelPtr];
+        
+        [weakSelf.renderedTextures addObject:renderIntoTexture];
+      });
+    }
+    
+  });
+}
+
+/*
+
+// This method adds a serial queue
+
+- (void) doDecodeOp
+{
+  if (self.availableTextures.count == 0) {
+    NSLog(@"drawInMTKView : no availableTextures, skip decode for half interval");
+    
+    [NSTimer scheduledTimerWithTimeInterval:1.0/60.0
+                                     target:self
+                                   selector:@selector(doDecodeOp)
+                                   userInfo:nil
+                                    repeats:NO];
+    
+    return;
+  }
+  
+  __block id<MTLTexture> renderIntoTexture;
+  
+  // Modify availableTextures in main thread
+  renderIntoTexture = self.availableTextures[0];
+  [self.availableTextures removeObjectAtIndex:0];
+  
+  __weak typeof(self) weakSelf = self;
+  //__block typeof(self.readWriteData) readWriteData = self.readWriteData;
+  
+  dispatch_async(self.serialQueue, ^{
+    NSMutableData *readWriteData = weakSelf.readWriteData;
+    uint32_t *pixelPtr = (uint32_t *) readWriteData.mutableBytes;
+    int numPixels = (int) readWriteData.length / sizeof(uint32_t);
+    
+    for (int count = 0; count < 3; count++) {
+      for (int i = 0; i < numPixels; i++) {
+        uint32_t pixel = pixelPtr[i];
+        
+        uint32_t b0 = pixel & 0xFF;
+        uint32_t b1 = (pixel >> 8) & 0xFF;
+        uint32_t b2 = (pixel >> 16) & 0xFF;
+        uint32_t b3 = (pixel >> 24) & 0xFF;
+        
+        // swap
+        uint32_t tmp = b0;
+        b0 = b1;
+        b1 = tmp;
+        
+        pixel = (b3 << 24) | (b2 << 16) | (b1 << 8) | (b0);
+        pixelPtr[i] = pixel;
+      }
+    }
+    
+    // Copy into texture on main thread
+    
+    dispatch_sync(dispatch_get_main_queue(), ^{
+      // Copy into texture 1 or texture 2
+      [weakSelf.metalRenderContext fillBGRATexture:renderIntoTexture pixels:pixelPtr];
+      
+      [weakSelf.renderedTextures addObject:renderIntoTexture];
+
+      // Immediately place another async block into the queue
+      
+      [weakSelf doDecodeOp];
+    });
+   
+  });
+  
+  return;
+}
+
+*/
+ 
 - (void) viewDidLayoutSubviews {
   [super viewDidLayoutSubviews];
   CGRect rect = self.view.frame;
@@ -118,30 +308,17 @@ const static int textureDim = 1024;
   
   self.commandQueue = self.metalRenderContext.commandQueue;
   
-  uint32_t *inPixels = NULL;
+  self.availableTextures = [NSMutableArray array];
+  self.renderedTextures = [NSMutableArray array];
   
-  if (1)
-  {
-    NSMutableData *mData = [NSMutableData dataWithLength:textureDim*textureDim*sizeof(uint32_t)];
-    inPixels = mData.mutableBytes;
-    int numPixels = (int)mData.length / sizeof(uint32_t);
-    
-    for (int i = 0; i < numPixels; i++) {
-      uint32_t pixel;
-
-      // Blue
-      uint32_t b0 = 0xFF;
-      uint32_t b1 = 0x0;
-      uint32_t b2 = 0x0;
-      uint32_t b3 = 0xFF;
-      
-      pixel = (b3 << 24) | (b2 << 16) | (b1 << 8) | (b0);
-      
-      inPixels[i] = pixel;
-    }
-  }
+  self.renderTexture1 = [self.metalRenderContext makeBGRATexture:CGSizeMake(textureDim,textureDim) pixels:NULL usage:MTLTextureUsageRenderTarget|MTLTextureUsageShaderRead|MTLTextureUsageShaderWrite];
+  self.renderTexture2 = [self.metalRenderContext makeBGRATexture:CGSizeMake(textureDim,textureDim) pixels:NULL usage:MTLTextureUsageRenderTarget|MTLTextureUsageShaderRead|MTLTextureUsageShaderWrite];
   
-  self.renderTexture = [self.metalRenderContext makeBGRATexture:CGSizeMake(textureDim,textureDim) pixels:inPixels usage:MTLTextureUsageRenderTarget|MTLTextureUsageShaderRead|MTLTextureUsageShaderWrite];
+  [self.availableTextures addObject:self.renderTexture1];
+  dispatch_semaphore_signal(self.decodeTextureSemaphore);
+  
+  [self.availableTextures addObject:self.renderTexture2];
+  dispatch_semaphore_signal(self.decodeTextureSemaphore);
   
   // Init with (-1,-1) until actual size method is invoked
 
@@ -151,6 +328,8 @@ const static int textureDim = 1024;
     viewportSize.y = -1;
     self.viewportSize = viewportSize;
   }
+  
+  [self doDecodeOp];
   
   return;
 }
@@ -167,6 +346,8 @@ const static int textureDim = 1024;
 
 - (void)drawInMTKView:(nonnull MTKView *)view
 {
+//#define DRAW_INVIEW_TIMING
+  
   //NSLog(@"drawInMTKView %p", view);
   
   if (self.viewportSize.x == -1) {
@@ -174,51 +355,19 @@ const static int textureDim = 1024;
     return;
   }
   
+#if defined(DRAW_INVIEW_TIMING)
   CFTimeInterval draw_start_time = CACurrentMediaTime();
-  
-  // Costly CPU operation : swap Blue and Green channels
-  {
-    uint32_t *pixelPtr = (uint32_t *) self.readWriteData.mutableBytes;
-    int numPixels = (int) self.readWriteData.length / sizeof(uint32_t);
+#endif // DRAW_INVIEW_TIMING
 
-    if ((0))
-    {
-      id<MTLTexture> texture = self.renderTexture;
-      int width = (int) texture.width;
-      int height = (int) texture.height;
-      
-      assert((width * height * sizeof(uint32_t)) == self.readWriteData.length);
-      
-      [texture getBytes:(void*)pixelPtr
-            bytesPerRow:width*sizeof(uint32_t)
-          bytesPerImage:width*height*sizeof(uint32_t)
-             fromRegion:MTLRegionMake2D(0, 0, width, height)
-            mipmapLevel:0
-                  slice:0];
-    }
+  // Get next rendered texture
 
-    for (int count = 0; count < 3; count++) {
-      for (int i = 0; i < numPixels; i++) {
-        uint32_t pixel = pixelPtr[i];
-        
-        uint32_t b0 = pixel & 0xFF;
-        uint32_t b1 = (pixel >> 8) & 0xFF;
-        uint32_t b2 = (pixel >> 16) & 0xFF;
-        uint32_t b3 = (pixel >> 24) & 0xFF;
-        
-        // swap
-        uint32_t tmp = b0;
-        b0 = b1;
-        b1 = tmp;
-        
-        pixel = (b3 << 24) | (b2 << 16) | (b1 << 8) | (b0);
-        pixelPtr[i] = pixel;
-      }
-    }
-
-    // Copy into texture
-    [self.metalRenderContext fillBGRATexture:self.renderTexture pixels:pixelPtr];
+  if (self.renderedTextures.count == 0) {
+    NSLog(@"drawInMTKView : no renderedTextures, skip draw");
+    return;
   }
+  
+  id<MTLTexture> renderTexture = self.renderedTextures[0];
+  [self.renderedTextures removeObjectAtIndex:0];
   
   // Create a new command buffer
   
@@ -247,7 +396,7 @@ const static int textureDim = 1024;
                             offset:0
                            atIndex:AAPLVertexInputIndexVertices];
     
-    [renderEncoder setFragmentTexture:self.renderTexture
+    [renderEncoder setFragmentTexture:renderTexture
                               atIndex:AAPLTextureIndexes];
     
     // Draw the 3 vertices of our triangle
@@ -260,6 +409,11 @@ const static int textureDim = 1024;
     [renderEncoder endEncoding];
   }
 
+  [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> buffer){
+    [self.availableTextures addObject:renderTexture];
+    dispatch_semaphore_signal(self.decodeTextureSemaphore);
+  }];
+  
   id<CAMetalDrawable> drawable = mtkView.currentDrawable;
   
   if (drawable) {
@@ -267,9 +421,10 @@ const static int textureDim = 1024;
     [commandBuffer commit];
   }
   
+#if defined(DRAW_INVIEW_TIMING)
   CFTimeInterval draw_stop_time = CACurrentMediaTime();
-  
   printf("drawInMTKView time %.2f ms\n", (draw_stop_time-draw_start_time) * 1000);
+#endif // DRAW_INVIEW_TIMING
   
   return;
 }
