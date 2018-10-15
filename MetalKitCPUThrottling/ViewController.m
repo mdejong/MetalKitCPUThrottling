@@ -41,11 +41,10 @@ const static int textureDim = 1024;
 
 @property (nonatomic, retain) id<MTLTexture> renderTexture1;
 @property (nonatomic, retain) id<MTLTexture> renderTexture2;
+@property (nonatomic, retain) id<MTLTexture> renderTexture3;
 
 @property (nonatomic, retain) NSMutableArray *availableTextures;
 @property (nonatomic, retain) NSMutableArray *renderedTextures;
-
-//@property (nonatomic, retain) dispatch_queue_t serialQueue;
 
 @property (nonatomic, retain) dispatch_semaphore_t decodeTextureSemaphore;
 
@@ -60,8 +59,6 @@ const static int textureDim = 1024;
   self.readWriteData = [NSMutableData dataWithLength:textureDim*textureDim*sizeof(uint32_t)];
   
   [self pixelSetAllBlue];
-  
-  //self.serialQueue = dispatch_queue_create("com.serial.queue", DISPATCH_QUEUE_SERIAL);
   
   self.decodeTextureSemaphore = dispatch_semaphore_create(0);
   
@@ -96,7 +93,7 @@ const static int textureDim = 1024;
 
 - (void) doDecodeOp
 {
-#define DECODE_PRINTF
+//#define DECODE_PRINTF
   
   // Kick off decode
   
@@ -121,6 +118,7 @@ const static int textureDim = 1024;
       int numPixels = (int) readWriteData.length / sizeof(uint32_t);
       
       /*
+       // This impl writes 32 bit values to memory instead of read/write swap
       
       uint32_t renderPixelBlue = 0xFF0000FF; // Blue
       uint32_t renderPixelGreen = 0xFF00FF00; // Green
@@ -196,77 +194,6 @@ const static int textureDim = 1024;
   });
 }
 
-/*
-
-// This method adds a serial queue
-
-- (void) doDecodeOp
-{
-  if (self.availableTextures.count == 0) {
-    NSLog(@"drawInMTKView : no availableTextures, skip decode for half interval");
-    
-    [NSTimer scheduledTimerWithTimeInterval:1.0/60.0
-                                     target:self
-                                   selector:@selector(doDecodeOp)
-                                   userInfo:nil
-                                    repeats:NO];
-    
-    return;
-  }
-  
-  __block id<MTLTexture> renderIntoTexture;
-  
-  // Modify availableTextures in main thread
-  renderIntoTexture = self.availableTextures[0];
-  [self.availableTextures removeObjectAtIndex:0];
-  
-  __weak typeof(self) weakSelf = self;
-  //__block typeof(self.readWriteData) readWriteData = self.readWriteData;
-  
-  dispatch_async(self.serialQueue, ^{
-    NSMutableData *readWriteData = weakSelf.readWriteData;
-    uint32_t *pixelPtr = (uint32_t *) readWriteData.mutableBytes;
-    int numPixels = (int) readWriteData.length / sizeof(uint32_t);
-    
-    for (int count = 0; count < 3; count++) {
-      for (int i = 0; i < numPixels; i++) {
-        uint32_t pixel = pixelPtr[i];
-        
-        uint32_t b0 = pixel & 0xFF;
-        uint32_t b1 = (pixel >> 8) & 0xFF;
-        uint32_t b2 = (pixel >> 16) & 0xFF;
-        uint32_t b3 = (pixel >> 24) & 0xFF;
-        
-        // swap
-        uint32_t tmp = b0;
-        b0 = b1;
-        b1 = tmp;
-        
-        pixel = (b3 << 24) | (b2 << 16) | (b1 << 8) | (b0);
-        pixelPtr[i] = pixel;
-      }
-    }
-    
-    // Copy into texture on main thread
-    
-    dispatch_sync(dispatch_get_main_queue(), ^{
-      // Copy into texture 1 or texture 2
-      [weakSelf.metalRenderContext fillBGRATexture:renderIntoTexture pixels:pixelPtr];
-      
-      [weakSelf.renderedTextures addObject:renderIntoTexture];
-
-      // Immediately place another async block into the queue
-      
-      [weakSelf doDecodeOp];
-    });
-   
-  });
-  
-  return;
-}
-
-*/
- 
 - (void) viewDidLayoutSubviews {
   [super viewDidLayoutSubviews];
   CGRect rect = self.view.frame;
@@ -313,11 +240,15 @@ const static int textureDim = 1024;
   
   self.renderTexture1 = [self.metalRenderContext makeBGRATexture:CGSizeMake(textureDim,textureDim) pixels:NULL usage:MTLTextureUsageRenderTarget|MTLTextureUsageShaderRead|MTLTextureUsageShaderWrite];
   self.renderTexture2 = [self.metalRenderContext makeBGRATexture:CGSizeMake(textureDim,textureDim) pixels:NULL usage:MTLTextureUsageRenderTarget|MTLTextureUsageShaderRead|MTLTextureUsageShaderWrite];
+  self.renderTexture3 = [self.metalRenderContext makeBGRATexture:CGSizeMake(textureDim,textureDim) pixels:NULL usage:MTLTextureUsageRenderTarget|MTLTextureUsageShaderRead|MTLTextureUsageShaderWrite];
   
   [self.availableTextures addObject:self.renderTexture1];
   dispatch_semaphore_signal(self.decodeTextureSemaphore);
   
   [self.availableTextures addObject:self.renderTexture2];
+  dispatch_semaphore_signal(self.decodeTextureSemaphore);
+
+  [self.availableTextures addObject:self.renderTexture3];
   dispatch_semaphore_signal(self.decodeTextureSemaphore);
   
   // Init with (-1,-1) until actual size method is invoked
@@ -430,4 +361,3 @@ const static int textureDim = 1024;
 }
 
 @end
-
