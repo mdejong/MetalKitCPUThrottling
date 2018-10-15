@@ -181,7 +181,7 @@ const static int textureDim = 1024;
         [weakSelf.availableTextures removeObjectAtIndex:0];
         
 #if defined(DECODE_PRINTF)
-        printf("copy into texture on main thread\n");
+        printf("copy into texture %p on main thread\n", renderIntoTexture);
 #endif // DECODE_PRINTF
         
         // Copy into texture 1 or texture 2
